@@ -20,7 +20,7 @@
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
 
-        <!-- Quadrado Superior de Métricas (Estilo Exemplo) -->
+        <!-- Parte Superior: Anel de GB Vendidos + Detalhes à Direita -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -30,10 +30,9 @@
             android:padding="18dp"
             android:layout_marginBottom="16dp">
 
-            <!-- Esquerda: Anel / Progresso GB Vendidos -->
             <FrameLayout
-                android:layout_width="124dp"
-                android:layout_height="124dp"
+                android:layout_width="126dp"
+                android:layout_height="126dp"
                 android:layout_marginEnd="16dp">
 
                 <ProgressBar
@@ -43,15 +42,14 @@
                     android:layout_height="match_parent"
                     android:indeterminate="false"
                     android:max="100"
-                    android:progress="65"
-                    android:progressDrawable="@android:drawable/progress_horizontal" />
+                    android:progress="0" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:padding="8dp">
+                    android:padding="10dp">
 
                     <TextView
                         android:id="@+id/tvGbVendidos"
@@ -72,7 +70,6 @@
                 </LinearLayout>
             </FrameLayout>
 
-            <!-- Direita: Transferências, Meta e Saldo Hoje -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
