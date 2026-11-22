@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -154,7 +155,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun mostrarDialogoMeta() {
-        val metaAtual = prefs.getFloat("meta_gb", 10f)
+        val metaAtual = prefs.getFloat("meta_gb", 1000f)
         val totalAtual = prefs.getFloat("total_gb", 0f)
         val input = EditText(this).apply {
             setText(metaAtual.toString())
@@ -169,6 +170,7 @@ class MainActivity : AppCompatActivity() {
                 val novaMeta = input.text.toString().trim().replace(",", ".").toFloatOrNull()
                 if (novaMeta != null && novaMeta > 0f) {
                     prefs.edit().putFloat("meta_gb", novaMeta).apply()
+                    atualizarInterface()
                     Toast.makeText(this, "Meta atualizada para ${formatarGb(novaMeta)} GB", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -179,6 +181,9 @@ class MainActivity : AppCompatActivity() {
     private fun atualizarInterface() {
         val tvGbVendidos = findViewById<TextView>(R.id.tvGbVendidos)
         val tvTotalAtendidos = findViewById<TextView>(R.id.tvTotalAtendidos)
+        val tvMetaResumo = findViewById<TextView>(R.id.tvMetaResumo)
+        val tvSaldoHoje = findViewById<TextView>(R.id.tvSaldoHoje)
+        val progressGb = findViewById<ProgressBar>(R.id.progressGb)
         val tvSim1Count = findViewById<TextView>(R.id.tvSim1Count)
         val tvSim2Count = findViewById<TextView>(R.id.tvSim2Count)
         val tvFilaEspera = findViewById<TextView>(R.id.tvFilaEspera)
@@ -186,6 +191,8 @@ class MainActivity : AppCompatActivity() {
         val tvUltimosPedidos = findViewById<TextView>(R.id.tvUltimosPedidos)
 
         val totalGb = prefs.getFloat("total_gb", 0f)
+        val metaGb = prefs.getFloat("meta_gb", 1000f).coerceAtLeast(0.1f)
+        val saldoHoje = prefs.getInt("saldo_hoje_mt", 0)
         val totalAtendidos = prefs.getInt("total_atendidos", 0)
         val sim1 = prefs.getInt("sim1_count", 0)
         val sim2 = prefs.getInt("sim2_count", 0)
@@ -195,6 +202,10 @@ class MainActivity : AppCompatActivity() {
 
         tvGbVendidos.text = formatarGb(totalGb)
         tvTotalAtendidos.text = totalAtendidos.toString()
+        tvMetaResumo.text = "Meta: ${metaGb.toInt()} GB"
+        tvSaldoHoje.text = "Saldo hoje: $saldoHoje MT"
+        progressGb.progress = ((totalGb / metaGb) * 100f).toInt().coerceIn(0, 100)
+
         tvSim1Count.text = "$sim1/$limitePorSim"
         tvSim2Count.text = "$sim2/$limitePorSim"
         tvFilaEspera.text = "FILA DE ESPERA (${fila.size})"
