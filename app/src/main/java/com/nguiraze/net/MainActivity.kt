@@ -1,9 +1,12 @@
 package com.nguiraze.net
 
 import android.content.Context
+import android.graphics.Color
 import android.os.Bundle
+import android.text.InputType
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -30,7 +33,7 @@ class MainActivity : AppCompatActivity() {
         val btnResetSim2 = findViewById<Button>(R.id.btnResetSim2)
         val btnPausar = findViewById<Button>(R.id.btnPausar)
 
-        btnEnviar.setOnClickListener { mostrarDialogoNovoPedido() }
+        btnEnviar.setOnClickListener { mostrarPainelEnvioManual() }
         btnFila.setOnClickListener { processarProximoDaFila() }
         btnHistorico.setOnClickListener { mostrarHistorico() }
         btnMeta.setOnClickListener { mostrarDialogoMeta() }
@@ -56,23 +59,92 @@ class MainActivity : AppCompatActivity() {
         atualizarInterface()
     }
 
-    private fun mostrarDialogoNovoPedido() {
-        val input = EditText(this).apply {
-            hint = "Ex: 841234567:1.5"
-            setPadding(40, 30, 40, 30)
+    private fun mostrarPainelEnvioManual() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#09152E"))
+            setPadding(40, 32, 40, 24)
         }
 
-        AlertDialog.Builder(this)
-            .setTitle("Adicionar à Fila")
-            .setMessage("Formato: numero:gb (ex: 841234567:1.5)")
-            .setView(input)
-            .setPositiveButton("Enfileirar") { _, _ ->
-                val texto = input.text.toString().trim()
-                val partes = texto.split(":")
-                val numero = partes.getOrNull(0)?.trim().orEmpty()
-                val gb = partes.getOrNull(1)?.trim()?.replace(",", ".")?.toDoubleOrNull()
+        val tvSubtitulo = TextView(this).apply {
+            text = "PACOTES RÁPIDOS"
+            setTextColor(Color.parseColor("#94A3B8"))
+            textSize = 12f
+        }
+        container.addView(tvSubtitulo)
 
-                if (numero.length >= 9 && gb != null && gb > 0.0) {
+        val etMegabytes = EditText(this).apply {
+            hint = "Megabytes (ex: 100, 1024)"
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(Color.WHITE)
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setPadding(24, 24, 24, 24)
+        }
+
+        val btnPacote100 = Button(this).apply {
+            text = "100MB • 10 MT"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#163A7A"))
+            setOnClickListener { etMegabytes.setText("100") }
+        }
+
+        val btnPacote1024 = Button(this).apply {
+            text = "1024MB (1GB)"
+            isAllCaps = false
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.parseColor("#122752"))
+            setOnClickListener { etMegabytes.setText("1024") }
+        }
+
+        val rowPacotes = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 12, 0, 18)
+        }
+        val lpBtn = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            setMargins(0, 0, 10, 0)
+        }
+        val lpBtn2 = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            setMargins(10, 0, 0, 0)
+        }
+        rowPacotes.addView(btnPacote100, lpBtn)
+        rowPacotes.addView(btnPacote1024, lpBtn2)
+        container.addView(rowPacotes)
+
+        val etNumero = EditText(this).apply {
+            hint = "Número do cliente (ex: 841234567)"
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(Color.WHITE)
+            inputType = InputType.TYPE_CLASS_PHONE
+            setPadding(24, 24, 24, 24)
+        }
+
+        container.addView(etNumero)
+
+        val espaco = TextView(this).apply {
+            text = ""
+            textSize = 8f
+        }
+        container.addView(espaco)
+        container.addView(etMegabytes)
+
+        val tvInfo = TextView(this).apply {
+            text = "100MB a 10GB (em MB: 100 a 10240)"
+            setTextColor(Color.parseColor("#94A3B8"))
+            textSize = 11f
+            setPadding(0, 12, 0, 0)
+        }
+        container.addView(tvInfo)
+
+        AlertDialog.Builder(this)
+            .setTitle("Envio manual")
+            .setView(container)
+            .setPositiveButton("Despachar para um Agente") { _, _ ->
+                val numero = etNumero.text.toString().trim()
+                val mb = etMegabytes.text.toString().trim().replace(",", ".").toDoubleOrNull()
+
+                if (numero.length >= 9 && mb != null && mb > 0.0) {
+                    val gb = mb / 1024.0
                     val filaAtual = lerLista("fila_pedidos").toMutableList()
                     filaAtual.add("$numero|$gb")
                     guardarLista("fila_pedidos", filaAtual)
@@ -81,7 +153,7 @@ class MainActivity : AppCompatActivity() {
                         processarProximoDaFila()
                     }
                 } else {
-                    Toast.makeText(this, "Formato inválido. Use numero:gb", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Preenche um número válido e os megabytes.", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("Cancelar", null)
@@ -129,7 +201,8 @@ class MainActivity : AppCompatActivity() {
         val totalAtendidos = prefs.getInt("total_atendidos", 0) + 1
 
         val historico = lerLista("historico_pedidos").toMutableList()
-        val registo = "$numero • ${gb}GB • SIM $simEscolhido"
+        val gbFormatado = String.format(Locale("pt", "MZ"), "%.2f", gb)
+        val registo = "$numero • ${gbFormatado}GB • SIM $simEscolhido"
         historico.add(0, registo)
         if (historico.size > 30) historico.removeAt(historico.lastIndex)
 
