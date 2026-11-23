@@ -18,6 +18,7 @@ import android.text.InputType
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -33,7 +34,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val limitePorSim = 10
-    private val codigoPermissaoChamada = 101
+    private val codigoPermissoes = 101
 
     private val receptorSucessoUssd = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -53,6 +54,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val receptorSmsMpesa = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == SmsReceiver.ACAO_SMS_MPESA) {
+                consumirSmsPendentes()
+            }
+        }
+    }
+
+    private val receptorNovaSms = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == SmsReceiver.ACAO_NOVA_SMS) {
+                atualizarInterface()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -66,6 +83,11 @@ class MainActivity : AppCompatActivity() {
         val btnUsarSim2 = findViewById<Button>(R.id.btnUsarSim2)
         val btnResetSim2 = findViewById<Button>(R.id.btnResetSim2)
         val btnPausar = findViewById<Button>(R.id.btnPausar)
+
+        val idComprovativo = resources.getIdentifier("btnComprovativo", "id", packageName)
+        if (idComprovativo != 0) {
+            findViewById<Button>(idComprovativo)?.setOnClickListener { mostrarComprovativos() }
+        }
 
         btnEnviar.setOnClickListener { mostrarPainelEnvioManual() }
         btnFila.setOnClickListener { processarProximoDaFila() }
@@ -102,6 +124,13 @@ class MainActivity : AppCompatActivity() {
 
         registrarRecetores()
         verificarPermissoesIniciais()
+        consumirSmsPendentes()
+        atualizarInterface()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        consumirSmsPendentes()
         atualizarInterface()
     }
 
@@ -109,6 +138,8 @@ class MainActivity : AppCompatActivity() {
         try {
             unregisterReceiver(receptorSucessoUssd)
             unregisterReceiver(receptorFalhaUssd)
+            unregisterReceiver(receptorSmsMpesa)
+            unregisterReceiver(receptorNovaSms)
         } catch (_: Exception) {
         }
         super.onDestroy()
@@ -117,26 +148,36 @@ class MainActivity : AppCompatActivity() {
     private fun registrarRecetores() {
         val filtroSucesso = IntentFilter(UssdAccessibilityService.ACAO_SUCESSO_USSD)
         val filtroFalha = IntentFilter(UssdAccessibilityService.ACAO_FALHA_USSD)
+        val filtroSms = IntentFilter(SmsReceiver.ACAO_SMS_MPESA)
+        val filtroNovaSms = IntentFilter(SmsReceiver.ACAO_NOVA_SMS)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receptorSucessoUssd, filtroSucesso, Context.RECEIVER_NOT_EXPORTED)
             registerReceiver(receptorFalhaUssd, filtroFalha, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(receptorSmsMpesa, filtroSms, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(receptorNovaSms, filtroNovaSms, Context.RECEIVER_NOT_EXPORTED)
         } else {
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(receptorSucessoUssd, filtroSucesso)
             @Suppress("UnspecifiedRegisterReceiverFlag")
             registerReceiver(receptorFalhaUssd, filtroFalha)
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receptorSmsMpesa, filtroSms)
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receptorNovaSms, filtroNovaSms)
         }
     }
 
     private fun verificarPermissoesIniciais() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CALL_PHONE),
-                codigoPermissaoChamada
-            )
+        val emFalta = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            emFalta.add(Manifest.permission.CALL_PHONE)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
+            emFalta.add(Manifest.permission.RECEIVE_SMS)
+        }
+        if (emFalta.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, emFalta.toTypedArray(), codigoPermissoes)
         }
 
         if (!acessibilidadeAtiva()) {
@@ -183,7 +224,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val btnPacote100 = Button(this).apply {
-            text = "100MB • 3 MT"
+            text = "100MB • 10 MT"
             isAllCaps = false
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#163A7A"))
@@ -213,7 +254,7 @@ class MainActivity : AppCompatActivity() {
         container.addView(rowPacotes)
 
         val etNumero = EditText(this).apply {
-            hint = "Número do cliente (ex: 841234567)"
+            hint = "Número do cliente (ex: 856345158)"
             setHintTextColor(Color.parseColor("#64748B"))
             setTextColor(Color.WHITE)
             inputType = InputType.TYPE_CLASS_PHONE
@@ -235,10 +276,10 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Envio manual")
             .setView(container)
             .setPositiveButton("Despachar para um Agente") { _, _ ->
-                val numero = etNumero.text.toString().trim()
+                val numero = normalizarNumeroMocambique(etNumero.text.toString().trim())
                 val mb = etMegabytes.text.toString().trim().replace(",", ".").toDoubleOrNull()
 
-                if (numero.length >= 9 && mb != null && mb > 0.0) {
+                if (numero.length == 9 && mb != null && mb > 0.0) {
                     val gb = mb / 1024.0
                     val filaAtual = lerLista("fila_pedidos").toMutableList()
                     filaAtual.add("$numero|$gb")
@@ -272,7 +313,7 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(Manifest.permission.CALL_PHONE),
-                codigoPermissaoChamada
+                codigoPermissoes
             )
             Toast.makeText(this, "Concede permissão de chamada para disparar o USSD.", Toast.LENGTH_SHORT).show()
             return
@@ -403,6 +444,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun mostrarComprovativos() {
+        val comprovativos = lerLista("comprovantes_sms")
+        val texto = if (comprovativos.isEmpty()) {
+            "Nenhuma SMS guardada nos comprovativos ainda."
+        } else {
+            comprovativos.joinToString("\n\n--------------------\n\n")
+        }
+
+        val scroll = ScrollView(this).apply {
+            setPadding(36, 24, 36, 24)
+        }
+        val tv = TextView(this).apply {
+            text = texto
+            textSize = 13f
+        }
+        scroll.addView(tv)
+
+        AlertDialog.Builder(this)
+            .setTitle("Comprovativos (SMS)")
+            .setView(scroll)
+            .setPositiveButton("Fechar", null)
+            .setNeutralButton("Limpar") { _, _ ->
+                prefs.edit().remove("comprovantes_sms").apply()
+                Toast.makeText(this, "Comprovativos limpos.", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
     private fun mostrarHistorico() {
         val historico = lerLista("historico_pedidos")
         val pendente = prefs.getString("pedido_pendente", "").orEmpty()
@@ -417,7 +486,8 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Histórico de Envios")
             .setMessage(msg)
-            .setPositiveButton("Fechar", null)
+            .setPositiveButton("Ver Comprovativos") { _, _ -> mostrarComprovativos() }
+            .setNegativeButton("Fechar", null)
             .show()
     }
 
@@ -458,19 +528,46 @@ class MainActivity : AppCompatActivity() {
         return mapa
     }
 
+    private fun normalizarNumeroMocambique(bruto: String): String {
+        val digitos = bruto.filter { it.isDigit() }
+        return if (digitos.startsWith("258") && digitos.length == 12) {
+            digitos.drop(3)
+        } else {
+            digitos
+        }
+    }
+
+    private fun consumirSmsPendentes() {
+        val bruto = prefs.getString("sms_mpesa_pendentes", "").orEmpty()
+        if (bruto.isBlank()) return
+        val lista = bruto.split("||").filter { it.isNotBlank() }
+        prefs.edit().remove("sms_mpesa_pendentes").apply()
+        lista.forEach { processarPagamentoMpesa(it) }
+    }
+
     fun processarPagamentoMpesa(textoMensagem: String) {
         val lower = textoMensagem.lowercase()
         if (!lower.contains("m-pesa") && !lower.contains("mpesa")) {
             return
         }
 
-        val regexNumero = Regex("""\b(8[2-7]\d{7})\b""")
-        val numero = regexNumero.find(textoMensagem)?.value ?: return
+        val matchRef = Regex("""\bConfirmado\s+([A-Z0-9]+)\b""", RegexOption.IGNORE_CASE).find(textoMensagem)
+        val refId = matchRef?.groupValues?.getOrNull(1)?.uppercase().orEmpty()
+        if (refId.isNotBlank()) {
+            val refsProcessadas = lerLista("refs_mpesa_processadas")
+            if (refsProcessadas.contains(refId)) return
+            val novaLista = (listOf(refId) + refsProcessadas).take(100)
+            guardarLista("refs_mpesa_processadas", novaLista)
+        }
 
-        val regexValor = Regex("""(\d+(?:[.,]\d{1,2})?)\s*(?:mt|mzn)""", RegexOption.IGNORE_CASE)
-        val valorPago = regexValor.findAll(textoMensagem)
-            .mapNotNull { it.groupValues.getOrNull(1)?.replace(",", ".")?.toDoubleOrNull() }
-            .firstOrNull { it > 0.0 } ?: return
+        val matchValor = Regex("""Recebeste\s+(\d+(?:[.,]\d{1,2})?)\s*MT""", RegexOption.IGNORE_CASE)
+            .find(textoMensagem)
+        val valorPago = matchValor?.groupValues?.getOrNull(1)?.replace(",", ".")?.toDoubleOrNull() ?: return
+
+        val matchNumero = Regex("""\bde\s+(\+?258\s*8[2-7]\d{7}|8[2-7]\d{7})\b""", RegexOption.IGNORE_CASE)
+            .find(textoMensagem)
+        val numero = normalizarNumeroMocambique(matchNumero?.groupValues?.getOrNull(1).orEmpty())
+        if (numero.length != 9) return
 
         val mb = lerTabelaMegas()[valorPago] ?: return
         val gb = mb / 1024.0
@@ -478,6 +575,8 @@ class MainActivity : AppCompatActivity() {
         filaAtual.add("$numero|$gb")
         guardarLista("fila_pedidos", filaAtual)
         atualizarInterface()
+
+        Toast.makeText(this, "M-Pesa ${valorPago}MT de $numero -> ${mb}MB na fila", Toast.LENGTH_SHORT).show()
 
         if (!prefs.getBoolean("fila_pausada", false)) {
             processarProximoDaFila()
