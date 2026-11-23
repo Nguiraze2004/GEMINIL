@@ -1,8 +1,14 @@
 package com.nguiraze.net
 
+import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.telecom.TelecomManager
 import android.text.InputType
 import android.widget.Button
 import android.widget.EditText
@@ -11,6 +17,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -20,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val limitePorSim = 10
+    private val codigoPermissaoChamada = 101
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,7 +38,9 @@ class MainActivity : AppCompatActivity() {
         val btnFila = findViewById<Button>(R.id.btnFila)
         val btnHistorico = findViewById<Button>(R.id.btnHistorico)
         val btnMeta = findViewById<Button>(R.id.btnMeta)
+        val btnUsarSim1 = findViewById<Button>(R.id.btnUsarSim1)
         val btnResetSim1 = findViewById<Button>(R.id.btnResetSim1)
+        val btnUsarSim2 = findViewById<Button>(R.id.btnUsarSim2)
         val btnResetSim2 = findViewById<Button>(R.id.btnResetSim2)
         val btnPausar = findViewById<Button>(R.id.btnPausar)
 
@@ -37,6 +48,16 @@ class MainActivity : AppCompatActivity() {
         btnFila.setOnClickListener { processarProximoDaFila() }
         btnHistorico.setOnClickListener { mostrarHistorico() }
         btnMeta.setOnClickListener { mostrarDialogoMeta() }
+
+        btnUsarSim1.setOnClickListener {
+            prefs.edit().putInt("sim_preferido", 1).apply()
+            Toast.makeText(this, "SIM 1 definido como preferencial", Toast.LENGTH_SHORT).show()
+        }
+
+        btnUsarSim2.setOnClickListener {
+            prefs.edit().putInt("sim_preferido", 2).apply()
+            Toast.makeText(this, "SIM 2 definido como preferencial", Toast.LENGTH_SHORT).show()
+        }
 
         btnResetSim1.setOnClickListener {
             prefs.edit().putInt("sim1_count", 0).apply()
@@ -56,7 +77,40 @@ class MainActivity : AppCompatActivity() {
             atualizarInterface()
         }
 
+        verificarPermissoesIniciais()
         atualizarInterface()
+    }
+
+    private fun verificarPermissoesIniciais() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.CALL_PHONE),
+                codigoPermissaoChamada
+            )
+        }
+
+        if (!acessibilidadeAtiva()) {
+            AlertDialog.Builder(this)
+                .setTitle("Acessibilidade USSD")
+                .setMessage("Ativa o serviço NGUIRAZE NET na Acessibilidade para ajudar na leitura/resposta automática dos menus USSD.")
+                .setPositiveButton("Abrir Configurações") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                .setNegativeButton("Depois", null)
+                .show()
+        }
+    }
+
+    private fun acessibilidadeAtiva(): Boolean {
+        val servicoId = "$packageName/${UssdAccessibilityService::class.java.name}"
+        val habilitados = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ).orEmpty()
+        return habilitados.split(":").any { it.equals(servicoId, ignoreCase = true) }
     }
 
     private fun mostrarPainelEnvioManual() {
@@ -120,16 +174,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         container.addView(etNumero)
-
-        val espaco = TextView(this).apply {
-            text = ""
-            textSize = 8f
-        }
-        container.addView(espaco)
         container.addView(etMegabytes)
 
         val tvInfo = TextView(this).apply {
-            text = "100MB a 10GB (em MB: 100 a 10240)"
+            text = "Dispara *162# no SIM disponível (limite 10/SIM)."
             setTextColor(Color.parseColor("#94A3B8"))
             textSize = 11f
             setPadding(0, 12, 0, 0)
@@ -166,6 +214,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.CALL_PHONE),
+                codigoPermissaoChamada
+            )
+            Toast.makeText(this, "Concede permissão de chamada para disparar o USSD.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val filaAtual = lerLista("fila_pedidos").toMutableList()
         if (filaAtual.isEmpty()) {
             Toast.makeText(this, "Fila de espera vazia.", Toast.LENGTH_SHORT).show()
@@ -174,8 +234,11 @@ class MainActivity : AppCompatActivity() {
 
         val sim1 = prefs.getInt("sim1_count", 0)
         val sim2 = prefs.getInt("sim2_count", 0)
+        val preferido = prefs.getInt("sim_preferido", 1)
 
         val simEscolhido = when {
+            preferido == 1 && sim1 < limitePorSim -> 1
+            preferido == 2 && sim2 < limitePorSim -> 2
             sim1 < limitePorSim -> 1
             sim2 < limitePorSim -> 2
             else -> {
@@ -190,6 +253,15 @@ class MainActivity : AppCompatActivity() {
         val partes = item.split("|")
         val numero = partes.getOrNull(0).orEmpty()
         val gb = partes.getOrNull(1)?.toDoubleOrNull() ?: 0.0
+        val mbInt = (gb * 1024.0).toInt().coerceAtLeast(1)
+
+        val disparou = dispararUssd("*162#", simEscolhido)
+        if (!disparou) {
+            Toast.makeText(this, "Falha ao iniciar chamada USSD no SIM $simEscolhido.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        UssdAccessibilityService.passoAtual = "$numero*$mbInt"
 
         if (simEscolhido == 1) {
             prefs.edit().putInt("sim1_count", sim1 + 1).apply()
@@ -213,7 +285,36 @@ class MainActivity : AppCompatActivity() {
         guardarLista("historico_pedidos", historico)
 
         atualizarInterface()
-        Toast.makeText(this, "Atendido: $registo", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "USSD *162# enviado no SIM $simEscolhido", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun dispararUssd(codigoUssd: String, slotSim: Int): Boolean {
+        return try {
+            val uri = Uri.parse("tel:" + Uri.encode(codigoUssd))
+            val intent = Intent(Intent.ACTION_CALL, uri).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                val handles = if (ContextCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.READ_PHONE_STATE
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    telecomManager?.callCapablePhoneAccounts
+                } else {
+                    emptyList()
+                }
+                val indice = (slotSim - 1).coerceAtLeast(0)
+                if (!handles.isNullOrEmpty() && indice < handles.size) {
+                    putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handles[indice])
+                }
+                putExtra("com.android.phone.extra.slot", slotSim - 1)
+                putExtra("simSlot", slotSim - 1)
+            }
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun mostrarHistorico() {
@@ -270,7 +371,7 @@ class MainActivity : AppCompatActivity() {
         tvTotalAtendidos.text = totalAtendidos.toString()
         tvSim1Count.text = "$sim1/$limitePorSim"
         tvSim2Count.text = "$sim2/$limitePorSim"
-        tvFilaEspera.text = "FILA DE ESPERA (${fila.size})"
+        tvFilaEspera.text = "Aguardando processamento: ${fila.size}"
         btnPausar.text = if (pausada) "Retomar" else "Pausar"
 
         tvUltimosPedidos.text = if (historico.isEmpty()) {
