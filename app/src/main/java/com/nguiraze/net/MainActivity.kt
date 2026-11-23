@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         btnEnviar.setOnClickListener { mostrarPainelEnvioManual() }
         btnFila.setOnClickListener { processarProximoDaFila() }
         btnHistorico.setOnClickListener { mostrarHistorico() }
-        btnMeta.setOnClickListener { mostrarDialogoMeta() }
+        btnMeta.setOnClickListener { mostrarDialogoTabelaMegas() }
 
         btnUsarSim1.setOnClickListener {
             prefs.edit().putInt("sim_preferido", 1).apply()
@@ -183,7 +183,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val btnPacote100 = Button(this).apply {
-            text = "100MB • 10 MT"
+            text = "100MB • 3 MT"
             isAllCaps = false
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#163A7A"))
@@ -421,27 +421,67 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun mostrarDialogoMeta() {
-        val metaAtual = prefs.getFloat("meta_gb", 1000f)
-        val totalAtual = prefs.getFloat("total_gb", 0f)
+    private fun mostrarDialogoTabelaMegas() {
+        val textoAtual = prefs.getString("tabela_megas", "10:100\n20:250\n50:600") ?: ""
         val input = EditText(this).apply {
-            setText(metaAtual.toString())
+            setText(textoAtual)
             setPadding(40, 30, 40, 30)
+            minLines = 5
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Meta de Vendas (GB)")
-            .setMessage("Atual: ${formatarGb(totalAtual)} GB / Meta: ${formatarGb(metaAtual)} GB")
+            .setTitle("Tabela de Megas (M-Pesa)")
+            .setMessage("Um por linha no formato valor:mb\nEx: 10:100")
             .setView(input)
             .setPositiveButton("Guardar") { _, _ ->
-                val novaMeta = input.text.toString().trim().replace(",", ".").toFloatOrNull()
-                if (novaMeta != null && novaMeta > 0f) {
-                    prefs.edit().putFloat("meta_gb", novaMeta).apply()
-                    Toast.makeText(this, "Meta atualizada para ${formatarGb(novaMeta)} GB", Toast.LENGTH_SHORT).show()
-                }
+                prefs.edit().putString("tabela_megas", input.text.toString().trim()).apply()
+                Toast.makeText(this, "Tabela de megas guardada!", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+    private fun lerTabelaMegas(): Map<Double, Int> {
+        val bruto = prefs.getString("tabela_megas", "10:100\n20:250\n50:600") ?: ""
+        val mapa = mutableMapOf<Double, Int>()
+        bruto.lines().forEach { linha ->
+            val limpa = linha.trim()
+            if (limpa.isNotEmpty() && limpa.contains(":")) {
+                val partes = limpa.split(":")
+                val valor = partes.getOrNull(0)?.trim()?.replace(",", ".")?.toDoubleOrNull()
+                val mb = partes.getOrNull(1)?.trim()?.toIntOrNull()
+                if (valor != null && valor > 0.0 && mb != null && mb > 0) {
+                    mapa[valor] = mb
+                }
+            }
+        }
+        return mapa
+    }
+
+    fun processarPagamentoMpesa(textoMensagem: String) {
+        val lower = textoMensagem.lowercase()
+        if (!lower.contains("m-pesa") && !lower.contains("mpesa")) {
+            return
+        }
+
+        val regexNumero = Regex("""\b(8[2-7]\d{7})\b""")
+        val numero = regexNumero.find(textoMensagem)?.value ?: return
+
+        val regexValor = Regex("""(\d+(?:[.,]\d{1,2})?)\s*(?:mt|mzn)""", RegexOption.IGNORE_CASE)
+        val valorPago = regexValor.findAll(textoMensagem)
+            .mapNotNull { it.groupValues.getOrNull(1)?.replace(",", ".")?.toDoubleOrNull() }
+            .firstOrNull { it > 0.0 } ?: return
+
+        val mb = lerTabelaMegas()[valorPago] ?: return
+        val gb = mb / 1024.0
+        val filaAtual = lerLista("fila_pedidos").toMutableList()
+        filaAtual.add("$numero|$gb")
+        guardarLista("fila_pedidos", filaAtual)
+        atualizarInterface()
+
+        if (!prefs.getBoolean("fila_pausada", false)) {
+            processarProximoDaFila()
+        }
     }
 
     private fun atualizarInterface() {
