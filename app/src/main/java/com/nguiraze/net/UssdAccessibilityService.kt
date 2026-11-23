@@ -16,12 +16,6 @@ class UssdAccessibilityService : AccessibilityService() {
         @Volatile
         var sessaoAtiva: Boolean = false
 
-        // 0: envia "8" (Serviço de Internet)
-        // 1: envia "2" (Transferir megas)
-        // 2: envia MB (ex: 450)
-        // 3: envia Número do destinatário
-        // 4: Confirmação da transferência (envia "1" ou clica Confirmar)
-        // 5: Clica em OK / aguarda resposta final
         @Volatile
         var passoAtualIndex: Int = 0
 
@@ -64,7 +58,7 @@ class UssdAccessibilityService : AccessibilityService() {
 
         if (!sessaoAtiva) return
 
-        // PASSO 8: Verificar sucesso ("transferiste")
+        // Passo 8: Verificar sucesso ("transferiste")
         if (textoTela.contains("transferiste", ignoreCase = true)) {
             pararFluxo()
             clicarBotao(root, listOf("ok", "fechar", "cancelar"))
@@ -77,7 +71,7 @@ class UssdAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Detetar falha explícita da operadora para NÃO contabilizar
+        // Detetar falha explícita para não contabilizar
         val textoLower = textoTela.lowercase()
         if (textoLower.contains("saldo insuficiente") ||
             textoLower.contains("invalido") ||
@@ -98,42 +92,36 @@ class UssdAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Evita repetir ação na mesma tela exata
         if (textoTela == ultimoTextoRespondido) return
 
         val editNode = encontrarEditText(root)
 
         when (passoAtualIndex) {
             0 -> {
-                // Passo 2: Escolher opção 8
                 if (enviarTextoNoCampo(root, editNode, "8")) {
                     ultimoTextoRespondido = textoTela
                     passoAtualIndex = 1
                 }
             }
             1 -> {
-                // Passo 3: Escolher opção 2
                 if (enviarTextoNoCampo(root, editNode, "2")) {
                     ultimoTextoRespondido = textoTela
                     passoAtualIndex = 2
                 }
             }
             2 -> {
-                // Passo 4: Quantidade de MB
                 if (enviarTextoNoCampo(root, editNode, quantidadeMb)) {
                     ultimoTextoRespondido = textoTela
                     passoAtualIndex = 3
                 }
             }
             3 -> {
-                // Passo 5: Número do destinatário
                 if (enviarTextoNoCampo(root, editNode, numeroCliente)) {
                     ultimoTextoRespondido = textoTela
                     passoAtualIndex = 4
                 }
             }
             4 -> {
-                // Passo 6: Tela de confirmação (pode pedir "1" no campo OU ter botão Confirmar/OK)
                 if (editNode != null) {
                     if (enviarTextoNoCampo(root, editNode, "1")) {
                         ultimoTextoRespondido = textoTela
@@ -145,7 +133,6 @@ class UssdAccessibilityService : AccessibilityService() {
                 }
             }
             5 -> {
-                // Passo 7: Clicar em OK depois da primeira confirmação
                 if (clicarBotao(root, listOf("ok", "confirmar", "enviar", "send"))) {
                     ultimoTextoRespondido = textoTela
                     passoAtualIndex = 6
@@ -192,4 +179,17 @@ class UssdAccessibilityService : AccessibilityService() {
             out.add(txt)
         }
         for (i in 0 until node.childCount) {
-            coletarTextos(
+            coletarTextos(node.getChild(i), out)
+        }
+    }
+
+    private fun encontrarEditText(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isEditable) return node
+        for (i in 0 until node.childCount) {
+            val found = encontrarEditText(node.getChild(i))
+            if (found != null) return found
+        }
+        return null
+    }
+}
