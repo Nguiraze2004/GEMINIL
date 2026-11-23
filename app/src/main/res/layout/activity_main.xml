@@ -2,40 +2,81 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#050A18"
-    android:padding="14dp">
+    android:background="#050814"
+    android:padding="12dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tvTitulo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="NGUIRAZE NET"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="14dp" />
-
-        <!-- Cartão Principal de Métricas -->
+        <!-- Cabeçalho Superior -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#09152E"
+            android:background="#090F24"
+            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingVertical="22dp"
-            android:paddingHorizontal="16dp"
-            android:layout_marginBottom="16dp">
+            android:padding="12dp"
+            android:layout_marginBottom="12dp">
 
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:gravity="center"
                 android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvTitulo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NGUIRAZE NET"
+                    android:textColor="#FFFFFF"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="• Conectado • Online"
+                    android:textColor="#22C55E"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="●"
+                android:textColor="#22C55E"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <!-- 2 Cartões de Métricas no Topo -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <!-- GB Vendidos -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="#0A1E44"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:layout_marginEnd="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="GB Vendidos"
+                    android:textColor="#93C5FD"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvGbVendidos"
@@ -43,59 +84,70 @@
                     android:layout_height="wrap_content"
                     android:text="0,00"
                     android:textColor="#FFFFFF"
-                    android:textSize="32sp"
-                    android:textStyle="bold" />
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="4dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="GB VENDIDOS"
-                    android:textColor="#94A3B8"
+                    android:text="Total de Megas"
+                    android:textColor="#CBD5E1"
                     android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:layout_marginTop="4dp" />
+                    android:layout_marginTop="2dp" />
             </LinearLayout>
 
+            <!-- Concluídos -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:gravity="center"
-                android:orientation="vertical">
+                android:background="#082A1A"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:layout_marginStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Concluídos"
+                    android:textColor="#4ADE80"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvTotalAtendidos"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="0"
-                    android:textColor="#22C55E"
-                    android:textSize="32sp"
-                    android:textStyle="bold" />
+                    android:textColor="#FFFFFF"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="4dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="TOTAL ATENDIDOS"
-                    android:textColor="#22C55E"
+                    android:text="Transferências feitas"
+                    android:textColor="#BBF7D0"
                     android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:layout_marginTop="4dp" />
+                    android:layout_marginTop="2dp" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Barra de Ações -->
+        <!-- Grade de Atalhos (Linha 1: Enviar Megas, SIM's, Histórico, Meta) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="18dp">
+            android:layout_marginBottom="8dp">
 
             <Button
                 android:id="@+id/btnEnviar"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="52dp"
                 android:layout_weight="1"
-                android:text="Enviar megas"
+                android:text="Enviar Megas"
                 android:textAllCaps="false"
                 android:textSize="11sp"
                 android:textColor="#FFFFFF"
@@ -105,72 +157,122 @@
             <Button
                 android:id="@+id/btnFila"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="52dp"
                 android:layout_weight="1"
-                android:text="Fila"
+                android:text="SIM's"
                 android:textAllCaps="false"
                 android:textSize="11sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#1D4ED8"
+                android:backgroundTint="#7E22CE"
                 android:layout_marginStart="3dp"
                 android:layout_marginEnd="3dp" />
 
             <Button
                 android:id="@+id/btnHistorico"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="52dp"
                 android:layout_weight="1"
                 android:text="Histórico"
                 android:textAllCaps="false"
                 android:textSize="11sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#1D4ED8"
+                android:backgroundTint="#0F766E"
                 android:layout_marginStart="3dp"
                 android:layout_marginEnd="3dp" />
 
             <Button
                 android:id="@+id/btnMeta"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="52dp"
                 android:layout_weight="1"
                 android:text="Meta"
                 android:textAllCaps="false"
                 android:textSize="11sp"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#1D4ED8"
+                android:backgroundTint="#B45309"
                 android:layout_marginStart="3dp" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Grade de Atalhos (Linha 2: Avançado, SMS, Agendar, Comprovantes) -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="CARTÕES SIM"
-            android:textColor="#CBD5E1"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="10dp" />
+            android:orientation="horizontal"
+            android:layout_marginBottom="14dp">
+
+            <Button
+                android:id="@+id/btnAvancado"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="Avançado"
+                android:textAllCaps="false"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#92400E"
+                android:layout_marginEnd="3dp" />
+
+            <Button
+                android:id="@+id/btnSms"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="SMS"
+                android:textAllCaps="false"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#15803D"
+                android:layout_marginStart="3dp"
+                android:layout_marginEnd="3dp" />
+
+            <Button
+                android:id="@+id/btnAgendar"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="Agendar"
+                android:textAllCaps="false"
+                android:textSize="11sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#6D28D9"
+                android:layout_marginStart="3dp"
+                android:layout_marginEnd="3dp" />
+
+            <Button
+                android:id="@+id/btnComprovantes"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="Comprovantes"
+                android:textAllCaps="false"
+                android:textSize="10sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#1E3A8A"
+                android:layout_marginStart="3dp" />
+        </LinearLayout>
 
         <!-- Cartões SIM 1 e SIM 2 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="12dp">
 
+            <!-- SIM 1 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="#091A2E"
+                android:background="#08261A"
                 android:orientation="vertical"
-                android:padding="14dp"
+                android:padding="12dp"
                 android:layout_marginEnd="6dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="SIM 1"
-                    android:textColor="#22C55E"
+                    android:textColor="#4ADE80"
                     android:textSize="12sp"
                     android:textStyle="bold" />
 
@@ -180,36 +282,57 @@
                     android:layout_height="wrap_content"
                     android:text="0/10"
                     android:textColor="#FFFFFF"
-                    android:textSize="26sp"
+                    android:textSize="24sp"
                     android:textStyle="bold"
                     android:layout_marginTop="4dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="transferências"
-                    android:textColor="#94A3B8"
-                    android:textSize="12sp"
-                    android:layout_marginBottom="12dp" />
+                    android:text="Transferências"
+                    android:textColor="#CBD5E1"
+                    android:textSize="11sp"
+                    android:layout_marginBottom="10dp" />
 
-                <Button
-                    android:id="@+id/btnResetSim1"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:text="Reset"
-                    android:textAllCaps="false"
-                    android:textColor="#FBBF24"
-                    android:textStyle="bold"
-                    android:backgroundTint="#1E293B" />
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnUsarSim1"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:text="Usar"
+                        android:textAllCaps="false"
+                        android:textSize="12sp"
+                        android:textColor="#4ADE80"
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btnResetSim1"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:text="Reset"
+                        android:textAllCaps="false"
+                        android:textSize="12sp"
+                        android:textColor="#FBBF24"
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginStart="4dp" />
+                </LinearLayout>
             </LinearLayout>
 
+            <!-- SIM 2 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="#09152E"
+                android:background="#091936"
                 android:orientation="vertical"
-                android:padding="14dp"
+                android:padding="12dp"
                 android:layout_marginStart="6dp">
 
                 <TextView
@@ -226,54 +349,88 @@
                     android:layout_height="wrap_content"
                     android:text="0/10"
                     android:textColor="#FFFFFF"
-                    android:textSize="26sp"
+                    android:textSize="24sp"
                     android:textStyle="bold"
                     android:layout_marginTop="4dp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="transferências"
-                    android:textColor="#94A3B8"
-                    android:textSize="12sp"
-                    android:layout_marginBottom="12dp" />
+                    android:text="Transferências"
+                    android:textColor="#CBD5E1"
+                    android:textSize="11sp"
+                    android:layout_marginBottom="10dp" />
 
-                <Button
-                    android:id="@+id/btnResetSim2"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:text="Reset"
-                    android:textAllCaps="false"
-                    android:textColor="#FBBF24"
-                    android:textStyle="bold"
-                    android:backgroundTint="#1E293B" />
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnUsarSim2"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:text="Usar"
+                        android:textAllCaps="false"
+                        android:textSize="12sp"
+                        android:textColor="#60A5FA"
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginEnd="4dp" />
+
+                    <Button
+                        android:id="@+id/btnResetSim2"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_weight="1"
+                        android:text="Reset"
+                        android:textAllCaps="false"
+                        android:textSize="12sp"
+                        android:textColor="#FBBF24"
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginStart="4dp" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Fila de Espera -->
+        <!-- Fila de Pedidos -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="#09152E"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:padding="14dp"
-            android:layout_marginBottom="18dp">
+            android:padding="12dp"
+            android:layout_marginBottom="14dp">
 
-            <TextView
-                android:id="@+id/tvFilaEspera"
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="FILA DE ESPERA (0)"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:textStyle="bold" />
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fila de Pedidos"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvFilaEspera"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Aguardando processamento: 0"
+                    android:textColor="#94A3B8"
+                    android:textSize="12sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
 
             <Button
                 android:id="@+id/btnPausar"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
+                android:layout_height="38dp"
                 android:text="Pausar"
                 android:textAllCaps="false"
                 android:textColor="#FBBF24"
@@ -287,7 +444,7 @@
             android:layout_height="wrap_content"
             android:text="Últimos pedidos"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:layout_marginBottom="8dp" />
 
@@ -296,7 +453,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="#09152E"
-            android:padding="14dp"
+            android:padding="12dp"
             android:text="Sem pedidos ainda."
             android:textColor="#CBD5E1"
             android:textSize="13sp" />
