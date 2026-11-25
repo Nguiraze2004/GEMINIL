@@ -353,7 +353,7 @@ class MainActivity : Activity() {
         content.addView(header)
 
         // CARTÃO DE RESUMO
-        val summaryCard = cardBox(cardNavy, borderBlue).apply {
+            val summaryCard = cardBox(cardNavy, borderBlue).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
 
@@ -364,8 +364,8 @@ class MainActivity : Activity() {
                     gbStr,
                     "GB VENDIDOS"
                 ),
-                LinearLayout.LayoutParams(dp(140), dp(140)).apply {
-                    rightMargin = dp(6)
+                LinearLayout.LayoutParams(dp(132), dp(132)).apply {
+                    rightMargin = dp(4)
                 }
             )
 
@@ -389,11 +389,12 @@ class MainActivity : Activity() {
 
             addView(
                 pedidosCircle,
-                LinearLayout.LayoutParams(dp(140), dp(140)).apply {
-                    leftMargin = dp(12)
+                LinearLayout.LayoutParams(dp(132), dp(132)).apply {
+                    leftMargin = dp(24)
                 }
             )
         }
+
 
         content.addView(summaryCard)
 
