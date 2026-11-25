@@ -1644,6 +1644,72 @@ private fun telaSims() {
         }
     }
 
+        // ============================================================
+    // 13B. DISPARO USSD E FILA
+    // ============================================================
+
+    private fun processarProximoDaFila() {
+        if (filaPausada || pedidoEmCurso != null || filaEspera.isEmpty()) return
+
+        if (checkSelfPermission(android.Manifest.permission.CALL_PHONE) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(
+                    android.Manifest.permission.CALL_PHONE,
+                    android.Manifest.permission.READ_PHONE_STATE,
+                    android.Manifest.permission.RECEIVE_SMS,
+                    android.Manifest.permission.READ_SMS
+                ),
+                100
+            )
+            return
+        }
+
+        val usadosAtual = if (simSelecionado == 1) sim1Usados else sim2Usados
+        if (usadosAtual >= limiteSim) {
+            Toast.makeText(this, "Limite do SIM $simSelecionado atingido!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val proximo = filaEspera.removeAt(0)
+        pedidoEmCurso = proximo
+        UssdAccessibilityService.iniciarFluxo(proximo.numeroCliente, proximo.megas)
+
+        if (!dispararUssd("*162#", simSelecionado)) {
+            UssdAccessibilityService.pararFluxo()
+            pedidoEmCurso = null
+            filaEspera.add(0, proximo)
+        }
+        navegarPara(abaAtual)
+    }
+
+    private fun dispararUssd(codigo: String, slotSim: Int): Boolean {
+        return try {
+            val uri = android.net.Uri.parse("tel:" + codigo.replace("#", "%23"))
+            val intent = android.content.Intent(android.content.Intent.ACTION_CALL, uri).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("com.android.phone.extra.slot", slotSim - 1)
+                putExtra("simSlot", slotSim - 1)
+            }
+
+            if (checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                val tm = getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager
+                val contas = tm?.callCapablePhoneAccounts
+                if (contas != null && contas.size >= slotSim) {
+                    intent.putExtra(android.telecom.TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, contas[slotSim - 1])
+                }
+            }
+
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // ============================================================
     // 14. HELPERS VISUAIS
     // ============================================================
