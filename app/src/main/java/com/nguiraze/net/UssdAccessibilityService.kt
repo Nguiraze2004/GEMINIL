@@ -21,12 +21,14 @@ class UssdAccessibilityService : AccessibilityService() {
         private var megasDestino = 0
         private var passoAtual = 0
         private var ultimoTextoProcessado = ""
+        private var aguardandoConfirmacaoFinal = false
 
         fun iniciarFluxo(numero: String, megas: Int) {
             numeroDestino = numero.trim()
             megasDestino = megas
             passoAtual = 0
             ultimoTextoProcessado = ""
+            aguardandoConfirmacaoFinal = false
             fluxoEmExecucao = true
         }
 
@@ -34,10 +36,20 @@ class UssdAccessibilityService : AccessibilityService() {
             fluxoEmExecucao = false
             passoAtual = 0
             ultimoTextoProcessado = ""
+            aguardandoConfirmacaoFinal = false
         }
     }
 
     private val handler = Handler(Looper.getMainLooper())
+    private val timeoutConfirmacaoRunnable = Runnable {
+        if (fluxoEmExecucao && aguardandoConfirmacaoFinal) {
+            pararFluxo()
+            val intentFalha = Intent(ACAO_FALHA_USSD).setPackage(packageName).apply {
+                putExtra("motivo", "Sem 'transferiste com sucesso' em 6s")
+            }
+            sendBroadcast(intentFalha)
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -46,10 +58,13 @@ class UssdAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         servicoAtivo = false
+        handler.removeCallbacksAndMessages(null)
+        pararFluxo()
         return super.onUnbind(intent)
     }
 
     override fun onInterrupt() {
+        handler.removeCallbacksAndMessages(null)
         pararFluxo()
     }
 
@@ -82,27 +97,24 @@ class UssdAccessibilityService : AccessibilityService() {
 
         val lower = textoCompleto.lowercase()
 
-        // 1. Confirmação final de sucesso
-        if (lower.contains("transferiste") ||
-            lower.contains("sucesso") ||
-            lower.contains("enviaste") ||
-            lower.contains("partilhaste")
-        ) {
+        // Confirmação real da transferência
+        if (lower.contains("transferiste com sucesso") || lower.contains("transferiste")) {
+            handler.removeCallbacks(timeoutConfirmacaoRunnable)
             clicarBotaoPositivo(root)
             pararFluxo()
             sendBroadcast(Intent(ACAO_SUCESSO_USSD).setPackage(packageName))
             return
         }
 
-        // 2. Mensagens de erro / bloqueio
+        // Erro explícito durante o fluxo
         if (lower.contains("saldo insuficiente") ||
-            lower.contains("invalido") ||
             lower.contains("inválido") ||
-            lower.contains("limite") ||
+            lower.contains("invalido") ||
             lower.contains("erro") ||
-            lower.contains("tente novamente") ||
-            lower.contains("falhou")
+            lower.contains("falh") ||
+            lower.contains("tente novamente")
         ) {
+            handler.removeCallbacks(timeoutConfirmacaoRunnable)
             clicarBotaoPositivo(root)
             pararFluxo()
             val intentFalha = Intent(ACAO_FALHA_USSD).setPackage(packageName).apply {
@@ -112,32 +124,91 @@ class UssdAccessibilityService : AccessibilityService() {
             return
         }
 
-        // 3. Navegação pelos passos do *162#
+        // Espera tempo para a janela estabilizar antes de verificar correspondência e clicar
         handler.postDelayed({
+            if (!fluxoEmExecucao) return@postDelayed
             val janelaAtual = rootInActiveWindow ?: return@postDelayed
+            val textosAtualizados = mutableListOf<String>()
+            coletarTextos(janelaAtual, textosAtualizados)
+            val telaAtual = textosAtualizados.joinToString(" ").lowercase().trim()
+            if (telaAtual.isEmpty()) return@postDelayed
+
+            if (telaAtual.contains("transferiste com sucesso") || telaAtual.contains("transferiste")) {
+                handler.removeCallbacks(timeoutConfirmacaoRunnable)
+                clicarBotaoPositivo(janelaAtual)
+                pararFluxo()
+                sendBroadcast(Intent(ACAO_SUCESSO_USSD).setPackage(packageName))
+                return@postDelayed
+            }
+
             when (passoAtual) {
                 0 -> {
-                    if (preencherEEnviar(janelaAtual, "1")) {
-                        passoAtual = 1
+                    // 8 - serviço de internet
+                    if (telaAtual.contains("serviço de internet") ||
+                        telaAtual.contains("servico de internet") ||
+                        telaAtual.contains("internet")
+                    ) {
+                        if (preencherEEnviar(janelaAtual, "8")) {
+                            passoAtual = 1
+                        }
                     }
                 }
                 1 -> {
-                    if (preencherEEnviar(janelaAtual, numeroDestino)) {
-                        passoAtual = 2
+                    // 2 - transferir megas
+                    if (telaAtual.contains("transferir megas") ||
+                        telaAtual.contains("transferir")
+                    ) {
+                        if (preencherEEnviar(janelaAtual, "2")) {
+                            passoAtual = 2
+                        }
                     }
                 }
                 2 -> {
-                    if (preencherEEnviar(janelaAtual, megasDestino.toString())) {
-                        passoAtual = 3
+                    // Introduzir quantidade de MB / megas (ou saldo de dados)
+                    if (telaAtual.contains("megas") ||
+                        telaAtual.contains("mb") ||
+                        telaAtual.contains("quantidade") ||
+                        telaAtual.contains("saldo de dados")
+                    ) {
+                        if (preencherEEnviar(janelaAtual, megasDestino.toString())) {
+                            passoAtual = 3
+                        }
                     }
                 }
                 3 -> {
-                    if (preencherEEnviar(janelaAtual, "1")) {
-                        passoAtual = 4
+                    // Digita o número do recipiente
+                    if (telaAtual.contains("recipiente") ||
+                        telaAtual.contains("número") ||
+                        telaAtual.contains("numero") ||
+                        telaAtual.contains("contacto") ||
+                        telaAtual.contains("telefone") ||
+                        telaAtual.contains("destino")
+                    ) {
+                        if (preencherEEnviar(janelaAtual, numeroDestino)) {
+                            passoAtual = 4
+                            aguardandoConfirmacaoFinal = true
+                            handler.removeCallbacks(timeoutConfirmacaoRunnable)
+                            handler.postDelayed(timeoutConfirmacaoRunnable, 6_000L)
+                        }
+                    }
+                }
+                4 -> {
+                    // Caso exista tela extra de confirmação antes da mensagem final
+                    if (telaAtual.contains("confirm") ||
+                        telaAtual.contains("1.") ||
+                        telaAtual.contains("aceitar") ||
+                        telaAtual.contains("sim")
+                    ) {
+                        if (preencherEEnviar(janelaAtual, "1")) {
+                            passoAtual = 5
+                            aguardandoConfirmacaoFinal = true
+                            handler.removeCallbacks(timeoutConfirmacaoRunnable)
+                            handler.postDelayed(timeoutConfirmacaoRunnable, 6_000L)
+                        }
                     }
                 }
             }
-        }, 500)
+        }, 650L)
     }
 
     private fun coletarTextos(node: AccessibilityNodeInfo?, lista: MutableList<String>) {
@@ -162,8 +233,9 @@ class UssdAccessibilityService : AccessibilityService() {
         if (!preencheu) return false
 
         handler.postDelayed({
-            clicarBotaoPositivo(rootInActiveWindow ?: root)
-        }, 300)
+            val alvoJanela = rootInActiveWindow ?: root
+            clicarBotaoPositivo(alvoJanela)
+        }, 350L)
         return true
     }
 
@@ -182,13 +254,11 @@ class UssdAccessibilityService : AccessibilityService() {
     private fun clicarBotaoPositivo(root: AccessibilityNodeInfo?) {
         if (root == null) return
 
-        // Tenta primeiro o botão positivo padrão de diálogos Android (Enviar / OK)
         val botoesPadrao = root.findAccessibilityNodeInfosByViewId("android:id/button1")
         for (btn in botoesPadrao) {
             if (clicarNoOuNoPai(btn)) return
         }
 
-        // Fallback por texto (em qualquer caixa alta/baixa)
         val textosBotao = listOf("enviar", "send", "ok", "aceitar", "confirmar", "sim")
         for (alvo in textosBotao) {
             val encontrados = root.findAccessibilityNodeInfosByText(alvo)
