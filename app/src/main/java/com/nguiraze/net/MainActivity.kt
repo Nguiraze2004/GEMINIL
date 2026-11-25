@@ -611,38 +611,36 @@ class MainActivity : Activity() {
         }
     }
 
-
+     // ============================================================
+    // 6. TELA FILA E EXECUTOR
     // ============================================================
-    // 6. TELA FILA E EXECUTOR 
-    // ============================================================
-    
-private fun telaFilaExecutores() {
 
-    // CABEÇALHO
-    val topBar = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-    }
+    private fun telaFilaExecutores() {
 
-    addViewHeader@ run {
-        val voltar = txt("‹", 28f, white, true).apply {
-            setPadding(0, 0, dp(12), 0)
-            setOnClickListener { navegarPara("Início") }
+        // CABEÇALHO
+        val topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+
+            val voltar = txt("‹", 28f, white, true).apply {
+                setPadding(0, 0, dp(12), 0)
+                setOnClickListener { navegarPara("Início") }
+            }
+            addView(voltar)
+
+            val titulo = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(txt("Painel do Executor", 17f, white, true))
+                addView(txt("Este aparelho · Painel local", 11f, lightBlue))
+            }
+            addView(titulo, LinearLayout.LayoutParams(0, -2, 1f))
+
+            addView(txt("▣", 20f, lightBlue))
+            addView(txt("  $", 20f, yellow))
         }
-        topBar.addView(voltar)
 
-        val titulo = LinearLayout(this@MainActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(txt("Painel do Executor", 17f, white, true))
-            addView(txt("Este aparelho · Painel local", 11f, lightBlue))
-        }
+        content.addView(topBar)
 
-        topBar.addView(titulo, LinearLayout.LayoutParams(0, -2, 1f))
-        topBar.addView(txt("▣", 20f, lightBlue))
-        topBar.addView(txt("  $", 20f, yellow))
-    }
-
-    content.addView(topBar)
 
     // PESQUISA
     val pesquisa = EditText(this).apply {
