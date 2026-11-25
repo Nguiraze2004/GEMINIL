@@ -229,14 +229,20 @@ class MainActivity : Activity() {
 
         header.addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
 
+                val ligado = isAcessibilidadeAtiva()
         header.addView(
             pillBadge(
-                "● USSD não ligado",
-                yellow,
-                Color.rgb(55, 43, 12),
-                yellow
-            )
+                if (ligado) "● USSD ligado" else "● USSD não ligado",
+                if (ligado) green else yellow,
+                if (ligado) greenBg else Color.rgb(55, 43, 12),
+                if (ligado) green else yellow
+            ).apply {
+                setOnClickListener {
+                    startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+            }
         )
+
 
         content.addView(header)
 
