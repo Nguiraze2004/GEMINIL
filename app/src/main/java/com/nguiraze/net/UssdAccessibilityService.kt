@@ -1,8 +1,11 @@
 package com.nguiraze.net
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -11,185 +14,172 @@ class UssdAccessibilityService : AccessibilityService() {
     companion object {
         const val ACAO_SUCESSO_USSD = "com.nguiraze.net.ACAO_SUCESSO_USSD"
         const val ACAO_FALHA_USSD = "com.nguiraze.net.ACAO_FALHA_USSD"
-        const val EXTRA_RESUMO_USSD = "extra_resumo_ussd"
 
-        @Volatile
-        var sessaoAtiva: Boolean = false
+        var servicoAtivo = false
+        private var fluxoEmExecucao = false
+        private var numeroDestino = ""
+        private var megasDestino = 0
+        private var passoAtual = 0
+        private var ultimoTextoProcessado = ""
 
-        @Volatile
-        var passoAtualIndex: Int = 0
-
-        @Volatile
-        var quantidadeMb: String = ""
-
-        @Volatile
-        var numeroCliente: String = ""
-
-        @Volatile
-        var ultimoTextoUssd: String = ""
-
-        @Volatile
-        private var ultimoTextoRespondido: String = ""
-
-        fun iniciarFluxo(numero: String, mb: Int) {
-            numeroCliente = numero.trim()
-            quantidadeMb = mb.coerceAtLeast(1).toString()
-            passoAtualIndex = 0
-            ultimoTextoRespondido = ""
-            sessaoAtiva = true
+        fun iniciarFluxo(numero: String, megas: Int) {
+            numeroDestino = numero.trim()
+            megasDestino = megas
+            passoAtual = 0
+            ultimoTextoProcessado = ""
+            fluxoEmExecucao = true
         }
 
         fun pararFluxo() {
-            sessaoAtiva = false
-            passoAtualIndex = 0
-            ultimoTextoRespondido = ""
+            fluxoEmExecucao = false
+            passoAtual = 0
+            ultimoTextoProcessado = ""
         }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        val root = rootInActiveWindow ?: return
-        val textos = mutableListOf<String>()
-        coletarTextos(root, textos)
-        if (textos.isEmpty()) return
+    private val handler = Handler(Looper.getMainLooper())
 
-        val textoTela = textos.joinToString(" | ").trim()
-        if (textoTela.isBlank()) return
-        ultimoTextoUssd = textoTela
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        servicoAtivo = true
+    }
 
-        if (!sessaoAtiva) return
-
-        // Passo 8: Verificar sucesso ("transferiste")
-        if (textoTela.contains("transferiste", ignoreCase = true)) {
-            pararFluxo()
-            clicarBotao(root, listOf("ok", "fechar", "cancelar"))
-
-            val intent = Intent(ACAO_SUCESSO_USSD).apply {
-                setPackage(packageName)
-                putExtra(EXTRA_RESUMO_USSD, textoTela)
-            }
-            sendBroadcast(intent)
-            return
-        }
-
-        // Detetar falha explícita para não contabilizar
-        val textoLower = textoTela.lowercase()
-        if (textoLower.contains("saldo insuficiente") ||
-            textoLower.contains("invalido") ||
-            textoLower.contains("inválido") ||
-            textoLower.contains("erro") ||
-            textoLower.contains("falhou") ||
-            textoLower.contains("nao foi possivel") ||
-            textoLower.contains("não foi possível")
-        ) {
-            pararFluxo()
-            clicarBotao(root, listOf("ok", "fechar", "cancelar"))
-
-            val intent = Intent(ACAO_FALHA_USSD).apply {
-                setPackage(packageName)
-                putExtra(EXTRA_RESUMO_USSD, textoTela)
-            }
-            sendBroadcast(intent)
-            return
-        }
-
-        if (textoTela == ultimoTextoRespondido) return
-
-        val editNode = encontrarEditText(root)
-
-        when (passoAtualIndex) {
-            0 -> {
-                if (enviarTextoNoCampo(root, editNode, "8")) {
-                    ultimoTextoRespondido = textoTela
-                    passoAtualIndex = 1
-                }
-            }
-            1 -> {
-                if (enviarTextoNoCampo(root, editNode, "2")) {
-                    ultimoTextoRespondido = textoTela
-                    passoAtualIndex = 2
-                }
-            }
-            2 -> {
-                if (enviarTextoNoCampo(root, editNode, quantidadeMb)) {
-                    ultimoTextoRespondido = textoTela
-                    passoAtualIndex = 3
-                }
-            }
-            3 -> {
-                if (enviarTextoNoCampo(root, editNode, numeroCliente)) {
-                    ultimoTextoRespondido = textoTela
-                    passoAtualIndex = 4
-                }
-            }
-            4 -> {
-                if (editNode != null) {
-                    if (enviarTextoNoCampo(root, editNode, "1")) {
-                        ultimoTextoRespondido = textoTela
-                        passoAtualIndex = 5
-                    }
-                } else if (clicarBotao(root, listOf("confirmar", "sim", "ok", "enviar", "send"))) {
-                    ultimoTextoRespondido = textoTela
-                    passoAtualIndex = 5
-                }
-            }
-            5 -> {
-                if (clicarBotao(root, listOf("ok", "confirmar", "enviar", "send"))) {
-                    ultimoTextoRespondido = textoTela
-                    passoAtualIndex = 6
-                }
-            }
-        }
+    override fun onUnbind(intent: Intent?): Boolean {
+        servicoAtivo = false
+        return super.onUnbind(intent)
     }
 
     override fun onInterrupt() {
         pararFluxo()
     }
 
-    private fun enviarTextoNoCampo(
-        root: AccessibilityNodeInfo,
-        editNode: AccessibilityNodeInfo?,
-        valor: String
-    ): Boolean {
-        if (editNode == null || valor.isBlank()) return false
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val root = rootInActiveWindow ?: return
+        val pacote = event?.packageName?.toString() ?: return
+
+        // Filtra apenas diálogos de telefone / USSD do sistema Android
+        if (!pacote.contains("phone") &&
+            !pacote.contains("telecom") &&
+            !pacote.contains("ussd") &&
+            !pacote.contains("stk")
+        ) {
+            return
+        }
+
+        val textos = mutableListOf<String>()
+        coletarTextos(root, textos)
+        val textoCompleto = textos.joinToString(" ").trim()
+        if (textoCompleto.isEmpty()) return
+
+        // Guarda para o painel "DIAGNÓSTICO USSD" na aba SIMs
+        getSharedPreferences("ussd_debug", Context.MODE_PRIVATE).edit()
+            .putString("ultima_janela", pacote)
+            .putString("ultima_leitura", textoCompleto)
+            .apply()
+
+        if (!fluxoEmExecucao) return
+        if (textoCompleto == ultimoTextoProcessado) return
+        ultimoTextoProcessado = textoCompleto
+
+        val lower = textoCompleto.lowercase()
+
+        // 1. Verificar confirmação final de sucesso da Vodacom
+        if (lower.contains("transferiste") ||
+            lower.contains("sucesso") ||
+            lower.contains("enviaste")
+        ) {
+            clicarBotaoPositivo(root)
+            pararFluxo()
+            sendBroadcast(Intent(ACAO_SUCESSO_USSD).setPackage(packageName))
+            return
+        }
+
+        // 2. Verificar mensagens de erro conhecidas
+        if (lower.contains("saldo insuficiente") ||
+            lower.contains("invalido") ||
+            lower.contains("inválido") ||
+            lower.contains("limite") ||
+            lower.contains("erro") ||
+            lower.contains("tente novamente")
+        ) {
+            clicarBotaoPositivo(root)
+            pararFluxo()
+            val intentFalha = Intent(ACAO_FALHA_USSD).setPackage(packageName).apply {
+                putExtra("motivo", textoCompleto.take(90))
+            }
+            sendBroadcast(intentFalha)
+            return
+        }
+
+        // 3. Navegação pelos passos do menu *162# (Vodacom MZ)
+        handler.postDelayed({
+            val janelaAtual = rootInActiveWindow ?: return@postDelayed
+            when {
+                // Passo 0: Menu inicial *162# -> escolher opção de transferir megas (ex: "1")
+                passoAtual == 0 && (lower.contains("transferir") || lower.contains("partilhar") || lower.contains("megas")) -> {
+                    if (preencherEEnviar(janelaAtual, "1")) passoAtual = 1
+                }
+                // Passo 1: Inserir número do destinatário
+                passoAtual <= 1 && (lower.contains("numero") || lower.contains("número") || lower.contains("destinat")) -> {
+                    if (preencherEEnviar(janelaAtual, numeroDestino)) passoAtual = 2
+                }
+                // Passo 2: Inserir quantidade de megas (MB)
+                passoAtual <= 2 && (lower.contains("quantidade") || lower.contains("megas") || lower.contains("mb")) -> {
+                    if (preencherEEnviar(janelaAtual, megasDestino.toString())) passoAtual = 3
+                }
+                // Passo 3: Confirmar transferência ("1" para confirmar)
+                passoAtual <= 3 && (lower.contains("confirm") || lower.contains("1.") || lower.contains("aceitar")) -> {
+                    if (preencherEEnviar(janelaAtual, "1")) passoAtual = 4
+                }
+            }
+        }, 450)
+    }
+
+    private fun coletarTextos(node: AccessibilityNodeInfo?, lista: MutableList<String>) {
+        if (node == null) return
+        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { lista.add(it) }
+        for (i in 0 until node.childCount) {
+            coletarTextos(node.getChild(i), lista)
+        }
+    }
+
+    private fun preencherEEnviar(root: AccessibilityNodeInfo, valor: String): Boolean {
+        val campoInput = encontrarEditText(root) ?: return false
         val args = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, valor)
         }
-        val preencheu = editNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        val preencheu = campoInput.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
         if (!preencheu) return false
 
-        return clicarBotao(root, listOf("enviar", "send", "ok", "confirmar"))
-    }
-
-    private fun clicarBotao(node: AccessibilityNodeInfo?, alvos: List<String>): Boolean {
-        if (node == null) return false
-        val txt = node.text?.toString()?.lowercase()?.trim().orEmpty()
-        if (node.isClickable && alvos.contains(txt)) {
-            return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        }
-        for (i in 0 until node.childCount) {
-            if (clicarBotao(node.getChild(i), alvos)) return true
-        }
-        return false
-    }
-
-    private fun coletarTextos(node: AccessibilityNodeInfo?, out: MutableList<String>) {
-        if (node == null) return
-        val txt = node.text?.toString()?.trim()
-        if (!txt.isNullOrEmpty()) {
-            out.add(txt)
-        }
-        for (i in 0 until node.childCount) {
-            coletarTextos(node.getChild(i), out)
-        }
+        handler.postDelayed({
+            clicarBotaoPositivo(rootInActiveWindow ?: root)
+        }, 250)
+        return true
     }
 
     private fun encontrarEditText(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
         if (node == null) return null
-        if (node.isEditable) return node
+        if (node.className?.toString()?.contains("EditText") == true && node.isEditable) {
+            return node
+        }
         for (i in 0 until node.childCount) {
-            val found = encontrarEditText(node.getChild(i))
-            if (found != null) return found
+            val achado = encontrarEditText(node.getChild(i))
+            if (achado != null) return achado
         }
         return null
+    }
+
+    private fun clicarBotaoPositivo(root: AccessibilityNodeInfo?) {
+        if (root == null) return
+        val textosBotao = listOf("Enviar", "Send", "OK", "Aceitar", "Confirmar")
+        for (texto in textosBotao) {
+            val botoes = root.findAccessibilityNodeInfosByText(texto)
+            for (btn in botoes) {
+                if (btn.isClickable) {
+                    btn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    return
+                }
+            }
+        }
     }
 }
