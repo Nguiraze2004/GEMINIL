@@ -836,15 +836,18 @@ class MainActivity : Activity() {
                 )
             )
 
+            processarProximoDaFila()
+
             Toast.makeText(
                 this,
-                "Pedido registado na fila. Aguardando integração com a operadora.",
-                Toast.LENGTH_LONG
+                "A processar pedido na fila...",
+                Toast.LENGTH_SHORT
             ).show()
 
             navegarPara("Fila")
         }
     }
+
 
     envioCard.addView(
         despachar,
