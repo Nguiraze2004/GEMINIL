@@ -4,58 +4,50 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class SmsReceiver : BroadcastReceiver() {
 
     companion object {
-        const val ACAO_SMS_MPESA = "com.nguiraze.net.ACAO_SMS_MPESA"
-        const val ACAO_NOVA_SMS = "com.nguiraze.net.ACAO_NOVA_SMS"
-        const val EXTRA_TEXTO_SMS = "extra_texto_sms"
+        const val ACAO_NOVO_PEDIDO_SMS = "com.nguiraze.net.NOVO_PEDIDO_SMS"
     }
 
-    override fun onReceive(context: Context?, intent: Intent?) {
-        if (context == null || intent?.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
 
-        val mensagens = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
-        val textoCompleto = mensagens.joinToString("") { it.messageBody.orEmpty() }.trim()
-        if (textoCompleto.isBlank()) return
+        val mensagens = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+        val corpoCompleto = mensagens.joinToString("") { it.messageBody ?: "" }
+        val lower = corpoCompleto.lowercase()
 
-        val remetente = mensagens.firstOrNull()?.displayOriginatingAddress.orEmpty().trim()
-        val hora = SimpleDateFormat("dd/MM HH:mm", Locale("pt", "MZ")).format(Date())
-        val registoComprovativo = "[$hora] ${if (remetente.isNotBlank()) "$remetente: " else ""}$textoCompleto"
+        // Filtra apenas mensagens de confirmação de recebimento (M-Pesa / e-Mola)
+        if (!lower.contains("recebeste") && !lower.contains("transferencia recebida")) return
 
-        val prefs = context.getSharedPreferences("nguiraze_net_prefs", Context.MODE_PRIVATE)
+        // Extrai valor em MT (ex: "10.00MT" ou "10 MT")
+        val regexValor = Regex("""(\d+(?:[.,]\d+)?)\s*mt""", RegexOption.IGNORE_CASE)
+        val valorStr = regexValor.find(corpoCompleto)?.groupValues?.get(1)?.replace(",", ".")
+        val valorMt = valorStr?.toDoubleOrNull()?.toInt() ?: return
 
-        // 1. Guarda TODAS as SMS na opção Comprovativo
-        val comprovativosAtuais = prefs.getString("comprovantes_sms", "")
-            .orEmpty()
-            .split(";;")
-            .filter { it.isNotBlank() }
-        val novosComprovativos = (listOf(registoComprovativo) + comprovativosAtuais).take(100)
-        prefs.edit().putString("comprovantes_sms", novosComprovativos.joinToString(";;")).apply()
+        // Extrai número moçambicano (82, 83, 84, 85, 86, 87)
+        val regexNumero = Regex("""\b(8[2-7]\d{7})\b""")
+        val numeroCliente = regexNumero.find(corpoCompleto)?.groupValues?.get(1) ?: return
 
-        context.sendBroadcast(Intent(ACAO_NOVA_SMS).apply {
-            setPackage(context.packageName)
-            putExtra(EXTRA_TEXTO_SMS, registoComprovativo)
-        })
+        val megas = converterMtParaMegas(valorMt)
+        if (megas <= 0) return
 
-        // 2. Se for pagamento M-Pesa, guarda também para processamento automático de megas
-        val lower = textoCompleto.lowercase()
-        if (lower.contains("recebeste") && (lower.contains("m-pesa") || lower.contains("mpesa"))) {
-            val pendentes = prefs.getString("sms_mpesa_pendentes", "")
-                .orEmpty()
-                .split("||")
-                .filter { it.isNotBlank() }
-            val novaFilaSms = (pendentes + textoCompleto).takeLast(20)
-            prefs.edit().putString("sms_mpesa_pendentes", novaFilaSms.joinToString("||")).apply()
+        val aviso = Intent(ACAO_NOVO_PEDIDO_SMS).setPackage(context.packageName).apply {
+            putExtra("numero", numeroCliente)
+            putExtra("megas", megas)
+            putExtra("valor_mt", valorMt)
+        }
+        context.sendBroadcast(aviso)
+    }
 
-            context.sendBroadcast(Intent(ACAO_SMS_MPESA).apply {
-                setPackage(context.packageName)
-                putExtra(EXTRA_TEXTO_SMS, textoCompleto)
-            })
+    private fun converterMtParaMegas(valorMt: Int): Int {
+        return when (valorMt) {
+            10 -> 100
+            20 -> 250
+            50 -> 600
+            100 -> 1200
+            else -> valorMt * 10 // Regra base: 1 MT = 10 MB se não estiver na tabela fixa
         }
     }
 }
