@@ -104,6 +104,111 @@ class MainActivity : Activity() {
         getSharedPreferences("nguiraze_net_dados", Context.MODE_PRIVATE)
     }
 
+        private fun isAcessibilidadeAtiva(): Boolean {
+        val esperado = "$packageName/${UssdAccessibilityService::class.java.canonicalName}"
+        val ativos = android.provider.Settings.Secure.getString(
+            contentResolver,
+            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return ativos.split(':').any { it.equals(esperado, ignoreCase = true) }
+    }
+
+    private val receptorUssdSucesso = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val atual = pedidoEmCurso ?: return
+            val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+
+            if (simSelecionado == 1) sim1Usados++ else sim2Usados++
+            guardarContadores()
+
+            concluidos.add(
+                0,
+                TransacaoConcluida(
+                    numeroCliente = atual.numeroCliente,
+                    megas = atual.megas,
+                    valorMT = atual.megas / 10,
+                    hora = hora,
+                    simInfo = "SIM $simSelecionado",
+                    status = "Entregue"
+                )
+            )
+            pedidoEmCurso = null
+            navegarPara(abaAtual)
+            processarProximoDaFila()
+        }
+    }
+
+    private val receptorUssdFalha = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val atual = pedidoEmCurso ?: return
+            val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+
+            concluidos.add(
+                0,
+                TransacaoConcluida(
+                    numeroCliente = atual.numeroCliente,
+                    megas = atual.megas,
+                    valorMT = atual.megas / 10,
+                    hora = hora,
+                    simInfo = "SIM $simSelecionado",
+                    status = "Falhou"
+                )
+            )
+            pedidoEmCurso = null
+            navegarPara(abaAtual)
+            processarProximoDaFila()
+        }
+    }
+
+    private val receptorNovoSms = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val numero = intent?.getStringExtra("numero") ?: return
+            val megas = intent.getIntExtra("megas", 0)
+            if (megas <= 0) return
+
+            val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            filaEspera.add(
+                PedidoFila(
+                    id = System.currentTimeMillis().toString(),
+                    numeroCliente = numero,
+                    megas = megas,
+                    hora = hora
+                )
+            )
+            navegarPara(abaAtual)
+            processarProximoDaFila()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val f1 = android.content.IntentFilter(UssdAccessibilityService.ACAO_SUCESSO_USSD)
+        val f2 = android.content.IntentFilter(UssdAccessibilityService.ACAO_FALHA_USSD)
+        val f3 = android.content.IntentFilter(SmsReceiver.ACAO_NOVO_PEDIDO_SMS)
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receptorUssdSucesso, f1, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(receptorUssdFalha, f2, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(receptorNovoSms, f3, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receptorUssdSucesso, f1)
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receptorUssdFalha, f2)
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receptorNovoSms, f3)
+        }
+        navegarPara(abaAtual)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(receptorUssdSucesso)
+        unregisterReceiver(receptorUssdFalha)
+        unregisterReceiver(receptorNovoSms)
+    }
+
+
     // ============================================================
     // 3. INICIALIZAÇÃO
     // ============================================================
