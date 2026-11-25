@@ -41,14 +41,42 @@ class UssdAccessibilityService : AccessibilityService() {
     }
 
     private val handler = Handler(Looper.getMainLooper())
+
+    private val timeoutTelaRunnable = Runnable {
+        if (fluxoEmExecucao && !aguardandoConfirmacaoFinal) {
+            encerrarComFalha("Tempo esgotado à espera da tela (passo $passoAtual)")
+        }
+    }
+
     private val timeoutConfirmacaoRunnable = Runnable {
         if (fluxoEmExecucao && aguardandoConfirmacaoFinal) {
-            pararFluxo()
-            val intentFalha = Intent(ACAO_FALHA_USSD).setPackage(packageName).apply {
-                putExtra("motivo", "Sem 'transferiste com sucesso' em 6s")
-            }
-            sendBroadcast(intentFalha)
+            encerrarComFalha("Sem 'transferiste com sucesso' em 6s")
         }
+    }
+
+    private fun cancelarTimers() {
+        handler.removeCallbacks(timeoutTelaRunnable)
+        handler.removeCallbacks(timeoutConfirmacaoRunnable)
+    }
+
+    private fun agendarTimeoutTela(delayMs: Long = 9_000L) {
+        handler.removeCallbacks(timeoutTelaRunnable)
+        handler.postDelayed(timeoutTelaRunnable, delayMs)
+    }
+
+    private fun agendarTimeoutConfirmacao(delayMs: Long = 6_000L) {
+        handler.removeCallbacks(timeoutConfirmacaoRunnable)
+        handler.postDelayed(timeoutConfirmacaoRunnable, delayMs)
+    }
+
+    private fun encerrarComFalha(motivo: String) {
+        cancelarTimers()
+        clicarFecharOuOk(rootInActiveWindow)
+        pararFluxo()
+        val intentFalha = Intent(ACAO_FALHA_USSD).setPackage(packageName).apply {
+            putExtra("motivo", motivo.take(90))
+        }
+        sendBroadcast(intentFalha)
     }
 
     override fun onServiceConnected() {
@@ -58,13 +86,13 @@ class UssdAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         servicoAtivo = false
-        handler.removeCallbacksAndMessages(null)
+        cancelarTimers()
         pararFluxo()
         return super.onUnbind(intent)
     }
 
     override fun onInterrupt() {
-        handler.removeCallbacksAndMessages(null)
+        cancelarTimers()
         pararFluxo()
     }
 
@@ -99,7 +127,7 @@ class UssdAccessibilityService : AccessibilityService() {
 
         // Confirmação real da transferência
         if (lower.contains("transferiste com sucesso") || lower.contains("transferiste")) {
-            handler.removeCallbacks(timeoutConfirmacaoRunnable)
+            cancelarTimers()
             clicarBotaoPositivo(root)
             pararFluxo()
             sendBroadcast(Intent(ACAO_SUCESSO_USSD).setPackage(packageName))
@@ -114,17 +142,15 @@ class UssdAccessibilityService : AccessibilityService() {
             lower.contains("falh") ||
             lower.contains("tente novamente")
         ) {
-            handler.removeCallbacks(timeoutConfirmacaoRunnable)
-            clicarBotaoPositivo(root)
-            pararFluxo()
-            val intentFalha = Intent(ACAO_FALHA_USSD).setPackage(packageName).apply {
-                putExtra("motivo", textoCompleto.take(90))
-            }
-            sendBroadcast(intentFalha)
+            encerrarComFalha(textoCompleto)
             return
         }
 
-        // Espera tempo para a janela estabilizar antes de verificar correspondência e clicar
+        // Veio uma tela nova: reinicia o tempo limite de espera de tela enquanto não estiver nos 6s finais
+        if (!aguardandoConfirmacaoFinal) {
+            agendarTimeoutTela(9_000L)
+        }
+
         handler.postDelayed({
             if (!fluxoEmExecucao) return@postDelayed
             val janelaAtual = rootInActiveWindow ?: return@postDelayed
@@ -134,7 +160,7 @@ class UssdAccessibilityService : AccessibilityService() {
             if (telaAtual.isEmpty()) return@postDelayed
 
             if (telaAtual.contains("transferiste com sucesso") || telaAtual.contains("transferiste")) {
-                handler.removeCallbacks(timeoutConfirmacaoRunnable)
+                cancelarTimers()
                 clicarBotaoPositivo(janelaAtual)
                 pararFluxo()
                 sendBroadcast(Intent(ACAO_SUCESSO_USSD).setPackage(packageName))
@@ -150,6 +176,7 @@ class UssdAccessibilityService : AccessibilityService() {
                     ) {
                         if (preencherEEnviar(janelaAtual, "8")) {
                             passoAtual = 1
+                            agendarTimeoutTela(9_000L)
                         }
                     }
                 }
@@ -160,6 +187,7 @@ class UssdAccessibilityService : AccessibilityService() {
                     ) {
                         if (preencherEEnviar(janelaAtual, "2")) {
                             passoAtual = 2
+                            agendarTimeoutTela(9_000L)
                         }
                     }
                 }
@@ -172,6 +200,7 @@ class UssdAccessibilityService : AccessibilityService() {
                     ) {
                         if (preencherEEnviar(janelaAtual, megasDestino.toString())) {
                             passoAtual = 3
+                            agendarTimeoutTela(9_000L)
                         }
                     }
                 }
@@ -187,8 +216,8 @@ class UssdAccessibilityService : AccessibilityService() {
                         if (preencherEEnviar(janelaAtual, numeroDestino)) {
                             passoAtual = 4
                             aguardandoConfirmacaoFinal = true
-                            handler.removeCallbacks(timeoutConfirmacaoRunnable)
-                            handler.postDelayed(timeoutConfirmacaoRunnable, 6_000L)
+                            handler.removeCallbacks(timeoutTelaRunnable)
+                            agendarTimeoutConfirmacao(6_000L)
                         }
                     }
                 }
@@ -202,8 +231,8 @@ class UssdAccessibilityService : AccessibilityService() {
                         if (preencherEEnviar(janelaAtual, "1")) {
                             passoAtual = 5
                             aguardandoConfirmacaoFinal = true
-                            handler.removeCallbacks(timeoutConfirmacaoRunnable)
-                            handler.postDelayed(timeoutConfirmacaoRunnable, 6_000L)
+                            handler.removeCallbacks(timeoutTelaRunnable)
+                            agendarTimeoutConfirmacao(6_000L)
                         }
                     }
                 }
@@ -249,6 +278,26 @@ class UssdAccessibilityService : AccessibilityService() {
             if (achado != null) return achado
         }
         return null
+    }
+
+    private fun clicarFecharOuOk(root: AccessibilityNodeInfo?) {
+        if (root == null) return
+
+        val botoesPadrao = root.findAccessibilityNodeInfosByViewId("android:id/button1")
+        for (btn in botoesPadrao) {
+            if (clicarNoOuNoPai(btn)) return
+        }
+
+        val textosSaida = listOf("ok", "fechar", "cancelar", "dismiss", "close", "enviar", "send")
+        for (alvo in textosSaida) {
+            val encontrados = root.findAccessibilityNodeInfosByText(alvo)
+            for (no in encontrados) {
+                val txtNo = no.text?.toString()?.trim()?.lowercase() ?: ""
+                if (txtNo == alvo || txtNo.contains(alvo)) {
+                    if (clicarNoOuNoPai(no)) return
+                }
+            }
+        }
     }
 
     private fun clicarBotaoPositivo(root: AccessibilityNodeInfo?) {
